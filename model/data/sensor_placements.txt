@@ -1,0 +1,11 @@
+SENSOR PLACEMENTS
+=================
+
+Objective Value: 0.177062
+
+From_Index	To_Index	From_Name	To_Name
+5	9	107	115
+14	13	123	121
+43	42	185	184
+60	61	209	211
+31	82	163	265

@@ -1,0 +1,112 @@
+# ============================================================================
+# AMPL Run File for Water Network Sensor Placement
+# ============================================================================
+# This file loads the model and data, solves the optimization problem,
+# and displays the results
+# ============================================================================
+
+# Reset any previous model
+reset;
+
+# Load the model
+model sensor_placement.mod;
+
+# Load the data
+data ../simulation/data/network_data.dat;
+
+# ===== SOLVER OPTIONS =====
+
+# Choose your solver (uncomment the one you have installed)
+option solver gurobi;
+
+# ===== SOLVE THE MODEL =====
+
+printf "\n";
+printf "==================================================================\n";
+printf "SOLVING SENSOR PLACEMENT OPTIMIZATION PROBLEM\n";
+printf "==================================================================\n";
+printf "Network: %d nodes, %d edges, %d patterns\n", num_nodes, num_edges, num_patterns;
+printf "Attack nodes: %d\n", num_attack_nodes;
+printf "Sensor budget: %d\n", S_max;
+printf "==================================================================\n\n";
+
+solve;
+
+# ===== DISPLAY RESULTS =====
+
+printf "\n";
+printf "==================================================================\n";
+printf "OPTIMIZATION RESULTS\n";
+printf "==================================================================\n";
+
+# Display solve status
+printf "Solve status: %s\n", solve_result;
+printf "Objective value (expected contamination): %.6f\n", Expected_Contamination;
+printf "\n";
+
+# Count sensors placed
+printf "Sensors placed: %d out of %d allowed\n", 
+    sum {(i,j) in EDGES} s[i,j], S_max;
+printf "\n";
+
+# Display sensor locations
+printf "==================================================================\n";
+printf "SENSOR LOCATIONS\n";
+printf "==================================================================\n";
+printf "%-15s %-15s %-15s %-15s\n", "From_Index", "To_Index", "From_Name", "To_Name";
+printf "------------------------------------------------------------------\n";
+
+for {(i,j) in EDGES: s[i,j] > 0.5} {
+    printf "%-15d %-15d %-15s %-15s\n", i, j, node_name[i], node_name[j];
+}
+printf "\n";
+
+# Display contamination statistics per attack scenario
+printf "==================================================================\n";
+printf "CONTAMINATION STATISTICS BY ATTACK NODE (Pattern 0)\n";
+printf "==================================================================\n";
+printf "%-10s %-15s %-20s\n", "Node_Idx", "Node_Name", "Nodes_Contaminated";
+printf "------------------------------------------------------------------\n";
+
+for {i in ATTACK_NODES} {
+    printf "%-10d %-15s %-20d\n", 
+        i, 
+        node_name[i], 
+        sum {j in NODES} c[i,0,j];
+}
+printf "\n";
+
+# Save results to file
+printf "Saving results to file...\n";
+
+# Save sensor placements
+printf "SENSOR PLACEMENTS\n" > "data/sensor_placements.txt";
+printf "=================\n\n" >> "data/sensor_placements.txt";
+printf "Objective Value: %.6f\n\n", Expected_Contamination >> "data/sensor_placements.txt";
+printf "From_Index\tTo_Index\tFrom_Name\tTo_Name\n" >> "data/sensor_placements.txt";
+
+for {(i,j) in EDGES: s[i,j] > 0.5} {
+    printf "%d\t%d\t%s\t%s\n", i, j, node_name[i], node_name[j] >> "data/sensor_placements.txt";
+}
+
+# Save contamination results (summary across all patterns)
+printf "CONTAMINATION RESULTS (Summary Across All Patterns)\n" > "data/contamination_results.txt";
+printf "====================================================\n\n" >> "data/contamination_results.txt";
+printf "Attack_Node\tNode_Name\tAvg_Contaminated\tMin_Contaminated\tMax_Contaminated\n" >> "data/contamination_results.txt";
+
+for {i in ATTACK_NODES} {
+    printf "%d\t%s\t%.2f\t%d\t%d\n", 
+        i, 
+        node_name[i], 
+        (sum {p in PATTERNS} (sum {j in NODES} c[i,p,j])) / card(PATTERNS),
+        min {p in PATTERNS} (sum {j in NODES} c[i,p,j]),
+        max {p in PATTERNS} (sum {j in NODES} c[i,p,j])
+        >> "data/contamination_results.txt";
+}
+
+printf "\n";
+printf "==================================================================\n";
+printf "Results saved to:\n";
+printf "  - data/sensor_placements.txt\n";
+printf "  - data/contamination_results.txt\n";
+printf "==================================================================\n\n";
