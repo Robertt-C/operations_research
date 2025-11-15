@@ -55,7 +55,7 @@ var c {i in ATTACK_NODES, p in PATTERNS, j in NODES} binary;
 
 # Minimize expected contamination weighted by node importance
 minimize Expected_Contamination:
-    sum {i in ATTACK_NODES, p in PATTERNS, j in NODES} 
+    sum {i in ATTACK_NODES, p in PATTERNS, j in NODES}
         alpha[i,p] * c[i,p,j] * delta[j,p];
 
 # ===== CONSTRAINTS =====

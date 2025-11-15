@@ -63,6 +63,23 @@ class SensorPlacementSA:
         # Build adjacency for contamination propagation
         self._build_flow_graph()
         
+        # Build network adjacency for neighbor generation
+        self._build_adjacency()
+        
+    def _build_adjacency(self):
+        """Build adjacency structure for finding neighboring edges"""
+        # For each edge, find edges that share a node (are neighbors)
+        self.edge_neighbors = {}  # edge_idx -> list of neighboring edge indices
+        
+        for idx1, (i1, j1) in enumerate(self.edges):
+            neighbors = []
+            for idx2, (i2, j2) in enumerate(self.edges):
+                if idx1 != idx2:
+                    # Edges are neighbors if they share a node
+                    if i1 == i2 or i1 == j2 or j1 == i2 or j1 == j2:
+                        neighbors.append(idx2)
+            self.edge_neighbors[idx1] = neighbors
+        
     def _extract_param(self, content: str, param_name: str, default=None) -> str:
         """Extract scalar parameter value"""
         import re
@@ -199,33 +216,78 @@ class SensorPlacementSA:
         return sensors
     
     def get_neighbor(self, sensors: Set[Tuple[int, int]]) -> Set[Tuple[int, int]]:
-        """Generate neighbor solution by swapping one sensor"""
+        """
+        Generate neighbor solution by modifying sensor placement
+        Uses spatial proximity - adds/removes sensors on edges that are adjacent to current sensors
+        """
         new_sensors = sensors.copy()
         
-        if random.random() < 0.5 and len(new_sensors) > 0:
-            # Remove a random sensor (and its symmetric pair)
+        # Strategy selection
+        strategy = random.choice(['swap_adjacent', 'add_adjacent', 'remove_any'])
+        
+        if strategy == 'swap_adjacent' and len(new_sensors) > 0:
+            # Remove a sensor and add an adjacent one
             sensor_to_remove = random.choice(list(new_sensors))
             new_sensors.discard(sensor_to_remove)
             reverse = (sensor_to_remove[1], sensor_to_remove[0])
             new_sensors.discard(reverse)
             
-            # Add a new random sensor (with symmetry)
-            available = [e for e in self.edges if e not in new_sensors]
-            if available and len(new_sensors) < self.S_max:
-                new_sensor = random.choice(available)
+            # Find neighboring edges of the removed sensor
+            removed_idx = self.edge_to_idx.get(sensor_to_remove)
+            if removed_idx is not None and removed_idx in self.edge_neighbors:
+                neighbor_indices = self.edge_neighbors[removed_idx]
+                # Filter to edges not already sensored
+                available_neighbors = [self.edges[idx] for idx in neighbor_indices 
+                                      if self.edges[idx] not in new_sensors]
+                
+                if available_neighbors:
+                    new_sensor = random.choice(available_neighbors)
+                else:
+                    # Fallback to any available edge
+                    available = [e for e in self.edges if e not in new_sensors]
+                    if available:
+                        new_sensor = random.choice(available)
+                    else:
+                        return new_sensors
+                
                 new_sensors.add(new_sensor)
                 reverse = (new_sensor[1], new_sensor[0])
                 if reverse in self.edge_to_idx:
                     new_sensors.add(reverse)
-        else:
-            # Add a new sensor if below budget
-            available = [e for e in self.edges if e not in new_sensors]
-            if available and len(new_sensors) < self.S_max:
-                new_sensor = random.choice(available)
+        
+        elif strategy == 'add_adjacent' and len(new_sensors) < self.S_max:
+            # Add a sensor adjacent to existing sensors
+            if len(new_sensors) > 0:
+                # Pick a random existing sensor
+                existing_sensor = random.choice(list(new_sensors))
+                existing_idx = self.edge_to_idx.get(existing_sensor)
+                
+                if existing_idx is not None and existing_idx in self.edge_neighbors:
+                    neighbor_indices = self.edge_neighbors[existing_idx]
+                    available_neighbors = [self.edges[idx] for idx in neighbor_indices 
+                                          if self.edges[idx] not in new_sensors]
+                    
+                    if available_neighbors:
+                        new_sensor = random.choice(available_neighbors)
+                        new_sensors.add(new_sensor)
+                        reverse = (new_sensor[1], new_sensor[0])
+                        if reverse in self.edge_to_idx:
+                            new_sensors.add(reverse)
+            else:
+                # No sensors yet, add a random one
+                new_sensor = random.choice(self.edges)
                 new_sensors.add(new_sensor)
                 reverse = (new_sensor[1], new_sensor[0])
                 if reverse in self.edge_to_idx:
                     new_sensors.add(reverse)
+        
+        else:  # 'remove_any'
+            # Remove a random sensor
+            if len(new_sensors) > 0:
+                sensor_to_remove = random.choice(list(new_sensors))
+                new_sensors.discard(sensor_to_remove)
+                reverse = (sensor_to_remove[1], sensor_to_remove[0])
+                new_sensors.discard(reverse)
         
         return new_sensors
     
