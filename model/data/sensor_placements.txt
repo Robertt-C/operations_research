@@ -1,7 +1,7 @@
 SENSOR PLACEMENTS
 =================
 
-Objective Value: 0.177062
+Objective Value: 0.045573
 
 From_Index	To_Index	From_Name	To_Name
 5	9	107	115

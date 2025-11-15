@@ -1,23 +1,23 @@
 SIMULATED ANNEALING RESULTS
 ======================================================================
 
-Objective Value: 0.244261
+Objective Value: 0.062434
 
 Sensors Placed: 5 out of 5 allowed
 
 Sensor Locations:
 ----------------------------------------------------------------------
 From_Index	To_Index	From_Name	To_Name
-11		26		119		151
-28		29		157		159
-43		42		185		184
-52		16		20		127
-58		57		207		206
+30		31		161		163
+41		43		183		185
+42		56		184		205
+57		59		206		208
+69		67		237		229
 
 Statistics:
 ----------------------------------------------------------------------
-Total iterations: 1130
-Solutions accepted: 1129
-Solutions rejected: 1
-Improvements found: 294
-Time elapsed: 100.01 seconds
+Total iterations: 1124
+Solutions accepted: 1124
+Solutions rejected: 0
+Improvements found: 263
+Time elapsed: 100.04 seconds
