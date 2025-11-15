@@ -158,27 +158,9 @@ class WaterNetworkDataExtractor:
             'link_flows': link_flows
         }
         
-        if save_timeseries:
-            self._save_timeseries_data(results)
+        # Timeseries CSV files are not needed for optimization
         
         return results
-    
-    def _save_timeseries_data(self, results: Dict):
-        """Save link flows to CSV file"""
-        print("\nSaving time series data...")
-        
-        data_dir = os.path.join(os.path.dirname(self.inp_file), 'data')
-        os.makedirs(data_dir, exist_ok=True)
-        
-        # Save link flows (only data needed for flow patterns)
-        df_flows = pd.DataFrame(
-            results['link_flows'],
-            index=self.link_ids,
-            columns=[f'timestep_{i}' for i in range(results['num_timesteps'])]
-        )
-        df_flows.to_csv(os.path.join(data_dir, 'link_flows.csv'))
-        print(f"  - Saved link flows to data/link_flows.csv")
-    
     def build_flow_patterns(self, results: Dict, flow_threshold: float = 0.01):
         """
         Build flow pattern matrix from simulation results
@@ -316,9 +298,13 @@ class WaterNetworkDataExtractor:
         attack_node_indices = attack_data['attack_node_indices']
         
         # Build alpha[i,p] - probability of attack at node i under pattern p
+        # Normalize so sum over all nodes and patterns equals 1
         if alpha is None:
-            alpha = np.ones((num_attack_nodes, num_patterns)) / num_patterns
+            total_scenarios = num_attack_nodes * num_patterns
+            alpha = np.ones((num_attack_nodes, num_patterns)) / total_scenarios
             print(f"  - Using uniform attack probability distribution")
+            print(f"  - Total attack scenarios: {total_scenarios} ({num_attack_nodes} nodes × {num_patterns} patterns)")
+            print(f"  - Each scenario probability: {1/total_scenarios:.6f}")
         
         # Build delta[j,p] - weight/importance of node j under pattern p
         if delta is None:
@@ -336,13 +322,17 @@ class WaterNetworkDataExtractor:
                     delta[i, :] = 0
             
             num_demand_nodes = np.sum(delta[:, 0] > 0)
+            total_population = np.sum(delta[:, 0])
             print(f"  - Assigned 500 people to each of {num_demand_nodes} demand nodes (junctions)")
             print(f"  - Tanks/Reservoirs have 0 population")
+            print(f"  - Total population: {total_population:.0f}")
         
-        # Normalize delta to get probabilities/weights
-        total_weight = np.sum(delta)
-        if total_weight > 0:
-            delta = delta / total_weight
+        # Normalize delta by total population to get proportion of population at each node
+        # This makes the objective value represent expected proportion of population exposed
+        total_population = np.sum(delta[:, 0])  # Same across all patterns
+        if total_population > 0:
+            delta = delta / total_population
+            print(f"  - Normalized delta by total population ({total_population:.0f})")
         
         # Build flow matrix for optimization: flow[k,j,p]
         # This is the flow_pattern matrix but indexed by edges
@@ -398,7 +388,12 @@ class WaterNetworkDataExtractor:
             output_dir: Directory to save files (default: data/ subdirectory)
         """
         if output_dir is None:
-            output_dir = os.path.join(os.path.dirname(self.inp_file), 'data')
+            # Get directory of inp_file - if already in data/, use that
+            base_dir = os.path.dirname(self.inp_file)
+            if os.path.basename(base_dir) == 'data':
+                output_dir = base_dir
+            else:
+                output_dir = os.path.join(base_dir, 'data')
         
         os.makedirs(output_dir, exist_ok=True)
         
