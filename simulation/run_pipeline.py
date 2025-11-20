@@ -1,6 +1,14 @@
 """
 Main Runner Script
-Executes the data extraction pipeline
+Executes the data extraction pipeline for any EPANET network file
+
+Usage:
+    python run_pipeline.py [inp_file] [output_file] [flow_threshold]
+    
+Examples:
+    python run_pipeline.py data/net3.inp
+    python run_pipeline.py data/exnet.inp data/exnet_data.dat
+    python run_pipeline.py data/exnet.inp data/exnet_data.dat 0.05
 """
 
 import os
@@ -8,13 +16,15 @@ import sys
 from data_extraction import WaterNetworkDataExtractor
 
 
-def run_full_pipeline(inp_file: str = 'data/net3.inp', 
-                      flow_threshold: float = 0.01):
+def run_full_pipeline(inp_file: str = None,
+                      output_file: str = None,
+                      flow_threshold: float = 0.0):
     """
     Run the data extraction pipeline
     
     Args:
-        inp_file: Path to EPANET .inp file
+        inp_file: Path to EPANET .inp file (relative to simulation directory)
+        output_file: Path to output .dat file (default: data/network_data.dat)
         flow_threshold: Minimum flow to consider (GPM)
     """
     
@@ -54,7 +64,7 @@ def run_full_pipeline(inp_file: str = 'data/net3.inp',
         )
         
         # Save all data
-        extractor.save_data_structures(optimization_data)
+        extractor.save_data_structures(optimization_data, output_file=output_file)
         
         # Close network
         extractor.close()
@@ -70,47 +80,61 @@ def run_full_pipeline(inp_file: str = 'data/net3.inp',
     # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
+    # Determine output file path for display
+    output_display = output_file if output_file else "data/network_data.dat"
+    
     print("\n" + "="*80)
     print("PIPELINE COMPLETED")
     print("="*80)
     print("\nGenerated file:")
-    print("  - data/network_data.dat (AMPL format)")
+    print(f"  - {output_display} (AMPL format)")
     
     print("\n" + "="*80)
     print("\nNext steps:")
-    print("  1. Review the data in data/network_data.dat")
-    print("  2. Run the AMPL model using solve.run")
+    print(f"  1. Review the data in {output_display}")
+    print("  2. Run the optimization solver with the generated data")
     print("\n" + "="*80 + "\n")
     
     return True
 
 
-def main():
-    """Main entry point"""
+def main(inp_file: str = None,
+         output_file: str = None,
+         flow_threshold: float = 0.0):
+    """
+    Main entry point
     
-    # Configuration
-    INP_FILE = 'data/net3.inp'
-    FLOW_THRESHOLD = 0.01  # GPM
+    Args:
+        inp_file: Path to EPANET .inp file (relative to simulation directory)
+        output_file: Path to output .dat file (default: data/network_data.dat)
+        flow_threshold: Minimum flow to consider in GPM (default: 0.0 = any positive flow)
+    """
     
     # Check if input file exists
-    if not os.path.exists(INP_FILE):
-        print(f"Error: Input file '{INP_FILE}' not found!")
-        print("Please ensure net3.inp is in the data/ directory.")
-        sys.exit(1)
+    if not os.path.exists(inp_file):
+        print(f"Error: Input file '{inp_file}' not found!")
+        return False
+    
+    # Display configuration
+    print(f"\nConfiguration:")
+    print(f"  Input file: {inp_file}")
+    print(f"  Output file: {output_file if output_file else 'auto (based on input)'}")
+    print(f"  Flow threshold: {flow_threshold} GPM")
     
     # Run pipeline
     success = run_full_pipeline(
-        inp_file=INP_FILE,
-        flow_threshold=FLOW_THRESHOLD
+        inp_file=inp_file,
+        output_file=output_file,
+        flow_threshold=flow_threshold
     )
     
     if success:
         print("Pipeline executed successfully!")
-        sys.exit(0)
+        return True
     else:
         print("Pipeline failed!")
-        sys.exit(1)
+        return False
 
 
 if __name__ == "__main__":
-    main()
+    main("./data/net3.inp", output_file="./data/net3_data.dat")

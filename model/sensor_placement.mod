@@ -41,7 +41,7 @@ param flow {0..num_edges-1, PATTERNS} binary;
 param flow_edge {i in NODES, j in NODES, p in PATTERNS} binary default 0;
 
 # Sensor budget (set this based on your constraint)
-param S_max >= 0 default 5;
+param S_max >= 0 default 20;
 
 # ===== DECISION VARIABLES =====
 
@@ -55,7 +55,7 @@ var c {i in ATTACK_NODES, p in PATTERNS, j in NODES} binary;
 
 # Minimize expected contamination weighted by node importance
 minimize Expected_Contamination:
-    sum {i in ATTACK_NODES, p in PATTERNS, j in NODES} 
+    sum {i in ATTACK_NODES, p in PATTERNS, j in NODES}
         alpha[i,p] * c[i,p,j] * delta[j,p];
 
 # ===== CONSTRAINTS =====

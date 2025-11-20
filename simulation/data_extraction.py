@@ -69,14 +69,17 @@ class WaterNetworkDataExtractor:
         """Extract edges (i,j) from links with node indices"""
         print("\nExtracting edges from links...")
         
-        # Get start and end nodes for each link using a different method
-        # Use getNodesConnectingLinksID() instead
+        # Get all connecting nodes at once (much more efficient for large networks)
+        all_connecting_nodes = self.network.getNodesConnectingLinksID()
+        
         self.edges = []
         self.edge_to_index = {}
+        self.link_to_edge = {}  # Map link index to edge index
+        edge_set = set()  # Track unique edges to avoid duplicates (for parallel pipes)
         
         for link_idx, link_name in enumerate(self.link_ids):
             # Get the link's connecting nodes by name
-            connecting_nodes = self.network.getNodesConnectingLinksID()[link_idx]
+            connecting_nodes = all_connecting_nodes[link_idx]
             
             # connecting_nodes is a list like ['NodeName1', 'NodeName2']
             start_node_name = connecting_nodes[0]
@@ -88,15 +91,30 @@ class WaterNetworkDataExtractor:
             
             # Store edge as tuple of node indices
             edge = (start_node_idx, end_node_idx)
-            self.edges.append(edge)
-            self.edge_to_index[edge] = len(self.edges) - 1
-            
-            # Also store reverse edge for symmetry
             reverse_edge = (end_node_idx, start_node_idx)
-            if reverse_edge not in self.edge_to_index:
-                self.edge_to_index[reverse_edge] = self.edge_to_index[edge]
+            
+            # Check if this edge already exists (handles parallel pipes)
+            if edge in edge_set or reverse_edge in edge_set:
+                # Parallel pipe - map to existing edge
+                if edge in self.edge_to_index:
+                    self.link_to_edge[link_idx] = self.edge_to_index[edge]
+                else:
+                    self.link_to_edge[link_idx] = self.edge_to_index[reverse_edge]
+            else:
+                # New unique edge
+                edge_idx = len(self.edges)
+                self.edges.append(edge)
+                self.edge_to_index[edge] = edge_idx
+                self.link_to_edge[link_idx] = edge_idx
+                edge_set.add(edge)
+                
+                # Also store reverse edge mapping for symmetry
+                if reverse_edge not in self.edge_to_index:
+                    self.edge_to_index[reverse_edge] = edge_idx
         
-        print(f"  - Total edges: {len(self.edges)}")
+        print(f"  - Total unique edges: {len(self.edges)} (from {len(self.link_ids)} links)")
+        if len(self.edges) < len(self.link_ids):
+            print(f"  - Found {len(self.link_ids) - len(self.edges)} parallel pipes")
         
     def run_hydraulic_simulation(self, save_timeseries: bool = False):
         """
@@ -161,13 +179,13 @@ class WaterNetworkDataExtractor:
         # Timeseries CSV files are not needed for optimization
         
         return results
-    def build_flow_patterns(self, results: Dict, flow_threshold: float = 0.01):
+    def build_flow_patterns(self, results: Dict, flow_threshold: float = 0.0):
         """
         Build flow pattern matrix from simulation results
         
         Args:
             results: Dictionary from run_hydraulic_simulation
-            flow_threshold: Minimum absolute flow to consider (GPM)
+            flow_threshold: Minimum absolute flow to consider (GPM) - default 0.0 means any positive flow
             
         Returns:
             Dictionary with flow pattern data
@@ -178,29 +196,31 @@ class WaterNetworkDataExtractor:
         num_timesteps = results['num_timesteps']
         link_flows = results['link_flows']
         
-        # Create flow pattern matrix: flow[i,j,p]
-        # Dimensions: (num_edges, num_timesteps)
-        # Value: 1 if there is flow from i to j at timestep p, 0 otherwise
+        # Create flow pattern matrix: flow[edge_idx, timestep]
+        # Value: 1 if there is flow on this edge at this timestep, 0 otherwise
+        # For parallel pipes, aggregate their flows
         flow_pattern = np.zeros((num_edges, num_timesteps), dtype=int)
         
         # Create actual flow values matrix for reference
         flow_values = np.zeros((num_edges, num_timesteps), dtype=float)
         
-        for edge_idx, (start_node, end_node) in enumerate(self.edges):
-            link_name = self.link_ids[edge_idx]
-            link_idx = self.link_indices[link_name]
+        # Process each link and map to its corresponding edge
+        for link_idx, link_name in enumerate(self.link_ids):
+            edge_idx = self.link_to_edge[link_idx]
+            edge = self.edges[edge_idx]
+            start_node, end_node = edge
             
             for timestep in range(num_timesteps):
                 flow_value = link_flows[link_idx][timestep]
-                flow_values[edge_idx, timestep] = flow_value
                 
-                # Positive flow means flow in the direction of the edge
-                # Negative flow means reverse direction
-                if abs(flow_value) > flow_threshold:
-                    if flow_value > 0:
-                        # Flow in edge direction (start -> end)
-                        flow_pattern[edge_idx, timestep] = 1
-                    # Note: for reverse flow, we rely on the reverse edge entry
+                # Aggregate flow values for parallel pipes (sum absolute values for reference)
+                flow_values[edge_idx, timestep] += abs(flow_value)
+                
+                # Mark as 1 ONLY if flow is positive (in forward direction)
+                # Negative flow = reverse direction = 0
+                # Zero flow = no flow = 0
+                if flow_value > flow_threshold:
+                    flow_pattern[edge_idx, timestep] = 1
         
         print(f"  - Flow pattern matrix shape: {flow_pattern.shape}")
         print(f"  - Non-zero flow patterns: {np.sum(flow_pattern)}/{flow_pattern.size}")
@@ -379,46 +399,48 @@ class WaterNetworkDataExtractor:
         
         return optimization_data
     
-    def save_data_structures(self, optimization_data: Dict, output_dir: str = None):
+    def save_data_structures(self, optimization_data: Dict, output_file: str = None):
         """
         Save data structures to AMPL format
         
         Args:
             optimization_data: Output from build_optimization_data_structures()
-            output_dir: Directory to save files (default: data/ subdirectory)
+            output_file: Full path to output .dat file (default: data/network_data.dat in same dir as input)
         """
-        if output_dir is None:
+        if output_file is None:
             # Get directory of inp_file - if already in data/, use that
             base_dir = os.path.dirname(self.inp_file)
             if os.path.basename(base_dir) == 'data':
                 output_dir = base_dir
             else:
                 output_dir = os.path.join(base_dir, 'data')
+            output_file = os.path.join(output_dir, 'network_data.dat')
+        else:
+            output_dir = os.path.dirname(output_file)
         
         os.makedirs(output_dir, exist_ok=True)
         
-        print(f"\nSaving data structures to {output_dir}...")
+        print(f"\nSaving data structures to {output_file}...")
         
-        # Save as AMPL .dat format (only format needed)
-        self._save_ampl_dat(optimization_data, output_dir)
+        # Save as AMPL .dat format
+        self._save_ampl_dat(optimization_data, output_file)
         
         print(f"\nData structures saved successfully!")
     
-    def _save_ampl_dat(self, optimization_data: Dict, output_dir: str):
+    def _save_ampl_dat(self, optimization_data: Dict, output_file: str):
         """
         Save data in AMPL .dat format
         
         Args:
             optimization_data: Output from build_optimization_data_structures()
-            output_dir: Directory to save files
+            output_file: Full path to output .dat file
         """
-        dat_file = os.path.join(output_dir, 'network_data.dat')
-        
         print(f"\nSaving AMPL data file...")
         
-        with open(dat_file, 'w') as f:
+        with open(output_file, 'w') as f:
             f.write("# AMPL Data File for Water Network Sensor Placement\n")
             f.write("# Generated automatically from EPANET network file\n")
+            f.write(f"# Source: {os.path.basename(self.inp_file)}\n")
             f.write(f"# Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write("\n")
             
@@ -536,61 +558,10 @@ class WaterNetworkDataExtractor:
             
             f.write("# End of AMPL data file\n")
         
-        print(f"  - Saved network_data.dat (AMPL format)")
+        print(f"  - Saved {os.path.basename(output_file)} (AMPL format)")
     
     def close(self):
         """Close the EPANET network"""
         if self.network is not None:
             self.network.unload()
             print("\nNetwork unloaded.")
-
-
-def main():
-    """Main execution function"""
-    
-    # File path
-    inp_file = 'data/net3.inp'
-    
-    print("="*70)
-    print("Water Network Data Extraction Pipeline")
-    print("="*70)
-    
-    # Initialize extractor
-    extractor = WaterNetworkDataExtractor(inp_file)
-    
-    # Step 1: Load network
-    extractor.load_network()
-    
-    # Step 2: Extract network structure
-    network_structure = extractor.extract_network_structure()
-    
-    # Step 3: Run hydraulic simulation
-    sim_results = extractor.run_hydraulic_simulation(save_timeseries=True)
-    
-    # Step 4: Build flow patterns
-    flow_pattern_data = extractor.build_flow_patterns(sim_results, flow_threshold=0.01)
-    
-    # Step 5: Build attack scenarios
-    attack_data = extractor.build_attack_scenarios()
-    
-    # Step 6: Build optimization data structures
-    optimization_data = extractor.build_optimization_data_structures(
-        flow_pattern_data,
-        attack_data
-    )
-    
-    # Step 7: Save all data
-    extractor.save_data_structures(optimization_data)
-    
-    # Close network
-    extractor.close()
-    
-    print("\n" + "="*70)
-    print("Pipeline completed successfully!")
-    print("="*70)
-    
-    return optimization_data
-
-
-if __name__ == "__main__":
-    main()
