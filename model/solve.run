@@ -12,7 +12,7 @@ reset;
 model sensor_placement.mod;
 
 # Load the data
-data ../simulation/data/network_data.dat;
+data ../simulation/data/net3_data.dat;
 
 # ===== SOLVER OPTIONS =====
 
@@ -31,6 +31,8 @@ printf "Sensor budget: %d\n", S_max;
 printf "==================================================================\n\n";
 
 solve;
+
+printf "\nOptimization completed!\n";
 
 # ===== DISPLAY RESULTS =====
 
@@ -80,33 +82,18 @@ printf "\n";
 printf "Saving results to file...\n";
 
 # Save sensor placements
-printf "SENSOR PLACEMENTS\n" > "data/sensor_placements.txt";
-printf "=================\n\n" >> "data/sensor_placements.txt";
-printf "Objective Value: %.6f\n\n", Expected_Contamination >> "data/sensor_placements.txt";
-printf "From_Index\tTo_Index\tFrom_Name\tTo_Name\n" >> "data/sensor_placements.txt";
+printf "SENSOR PLACEMENTS\n" > "results/sensor_placements.txt";
+printf "=================\n\n" >> "results/sensor_placements.txt";
+printf "Objective Value: %.6f\n\n", Expected_Contamination >> "results/sensor_placements.txt";
+printf "From_Index\tTo_Index\tFrom_Name\tTo_Name\n" >> "results/sensor_placements.txt";
 
 for {(i,j) in EDGES: s[i,j] > 0.5} {
-    printf "%d\t%d\t%s\t%s\n", i, j, node_name[i], node_name[j] >> "data/sensor_placements.txt";
-}
-
-# Save contamination results (summary across all patterns)
-printf "CONTAMINATION RESULTS (Summary Across All Patterns)\n" > "data/contamination_results.txt";
-printf "====================================================\n\n" >> "data/contamination_results.txt";
-printf "Attack_Node\tNode_Name\tAvg_Contaminated\tMin_Contaminated\tMax_Contaminated\n" >> "data/contamination_results.txt";
-
-for {i in ATTACK_NODES} {
-    printf "%d\t%s\t%.2f\t%d\t%d\n", 
-        i, 
-        node_name[i], 
-        (sum {p in PATTERNS} (sum {j in NODES} c[i,p,j])) / card(PATTERNS),
-        min {p in PATTERNS} (sum {j in NODES} c[i,p,j]),
-        max {p in PATTERNS} (sum {j in NODES} c[i,p,j])
-        >> "data/contamination_results.txt";
+    printf "%d\t%d\t%s\t%s\n", i, j, node_name[i], node_name[j] >> "results/sensor_placements.txt";
 }
 
 printf "\n";
 printf "==================================================================\n";
 printf "Results saved to:\n";
-printf "  - data/sensor_placements.txt\n";
-printf "  - data/contamination_results.txt\n";
+printf "  - results/sensor_placements.txt\n";
 printf "==================================================================\n\n";
+

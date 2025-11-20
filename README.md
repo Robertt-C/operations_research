@@ -99,17 +99,6 @@ operations_research/
 └── venv_operations_research/       # Virtual environment
 ```
 
-## Results
-
-Example with 5 sensors:
-
-| Method | Objective | Time |
-|--------|-----------|------|
-| AMPL (Gurobi) | 0.087 | <1s |
-| Simulated Annealing | 0.247 | 100s |
-
-Lower objective = better (less contamination)
-
 ## Dependencies
 
 - Python 3.11+

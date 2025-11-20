@@ -43,8 +43,8 @@ class SensorPlacementSA:
         self.num_attack_nodes = int(self._extract_param(content, 'num_attack_nodes'))
         self.num_edges = int(self._extract_param(content, 'num_edges'))
         self.num_patterns = int(self._extract_param(content, 'num_patterns'))
-        self.S_max = int(self._extract_param(content, 'S_max', default=5))
-        
+        self.S_max = int(self._extract_param(content, 'S_max', default=20))
+    
         # Extract sets
         self.attack_nodes = self._extract_set(content, 'ATTACK_NODES')
         self.edges = self._extract_edges(content)
@@ -462,7 +462,7 @@ class SensorPlacementSA:
             'improvements': improvements
         }
     
-    def save_results(self, result: Dict, output_file: str = 'data/sa_results.txt'):
+    def save_results(self, result: Dict, output_file: str = 'results/sa_results.txt'):
         """Save results to file"""
         with open(output_file, 'w') as f:
             f.write("SIMULATED ANNEALING RESULTS\n")
@@ -491,7 +491,7 @@ class SensorPlacementSA:
 def main():
     """Main entry point"""
     # Create solver
-    solver = SensorPlacementSA('../simulation/data/network_data.dat')
+    solver = SensorPlacementSA('../simulation/data/net3_data.dat')
     
     # Solve using Simulated Annealing
     result = solver.solve(
@@ -499,7 +499,7 @@ def main():
         cooling_rate=0.95,
         min_temp=0.01,
         iterations_per_temp=100,
-        max_time=100.0,  # Stop after 100 seconds
+        max_time=30.0,
         verbose=True
     )
     
