@@ -197,7 +197,7 @@ class WaterNetworkDataExtractor:
         link_flows = results['link_flows']
         
         # Create flow pattern matrix: flow[edge_idx, timestep]
-        # Value: 1 if there is flow on this edge at this timestep, 0 otherwise
+        # Value: 1 if positive flow (contamination can spread), 0 otherwise
         # For parallel pipes, aggregate their flows
         flow_pattern = np.zeros((num_edges, num_timesteps), dtype=int)
         
@@ -217,8 +217,9 @@ class WaterNetworkDataExtractor:
                 flow_values[edge_idx, timestep] += abs(flow_value)
                 
                 # Mark as 1 ONLY if flow is positive (in forward direction)
-                # Negative flow = reverse direction = 0
-                # Zero flow = no flow = 0
+                # Positive flow = contamination CAN spread along this edge
+                # Negative flow = water flows backwards, contamination CANNOT spread
+                # Zero flow = no flow = no contamination spread
                 if flow_value > flow_threshold:
                     flow_pattern[edge_idx, timestep] = 1
         
@@ -519,7 +520,8 @@ class WaterNetworkDataExtractor:
             
             # Flow pattern matrix - binary flow indicators [edge_idx, pattern]
             f.write("# ===== FLOW: Binary flow pattern matrix [edge,p] =====\n")
-            f.write("# flow[e,p] = 1 if there is flow on edge e in pattern p, 0 otherwise\n")
+            f.write("# flow[e,p] = 1 if positive flow (contamination can spread), 0 otherwise\n")
+            f.write("# Negative flows ignored (contamination cannot spread backwards)\n")
             f.write("# Edges are indexed 0 to num_edges-1\n\n")
             f.write("param flow : ")
             # Column headers (patterns)
