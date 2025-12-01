@@ -33,6 +33,7 @@ printf "==================================================================\n\n";
 solve;
 
 printf "\nOptimization completed!\n";
+printf "Solution time: %.2f seconds\n", _solve_time;
 
 # ===== DISPLAY RESULTS =====
 
@@ -41,8 +42,9 @@ printf "==================================================================\n";
 printf "OPTIMIZATION RESULTS\n";
 printf "==================================================================\n";
 
-# Display solve status
+# Display solve status and timing
 printf "Solve status: %s\n", solve_result;
+printf "Solution time: %.2f seconds\n", _solve_time;
 printf "Objective value (expected contamination): %.6f\n", Expected_Contamination;
 printf "\n";
 
@@ -60,21 +62,6 @@ printf "------------------------------------------------------------------\n";
 
 for {(i,j) in EDGES: s[i,j] > 0.5} {
     printf "%-15d %-15d %-15s %-15s\n", i, j, node_name[i], node_name[j];
-}
-printf "\n";
-
-# Display contamination statistics per attack scenario
-printf "==================================================================\n";
-printf "CONTAMINATION STATISTICS BY ATTACK NODE (Pattern 0)\n";
-printf "==================================================================\n";
-printf "%-10s %-15s %-20s\n", "Node_Idx", "Node_Name", "Nodes_Contaminated";
-printf "------------------------------------------------------------------\n";
-
-for {i in ATTACK_NODES} {
-    printf "%-10d %-15s %-20d\n", 
-        i, 
-        node_name[i], 
-        sum {j in NODES} c[i,0,j];
 }
 printf "\n";
 

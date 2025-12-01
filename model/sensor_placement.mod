@@ -34,7 +34,8 @@ param alpha {ATTACK_NODES, PATTERNS} >= 0, <= 1;
 # Node importance weights: delta[j,p] = importance of node j in pattern p
 param delta {NODES, PATTERNS} >= 0;
 
-# Flow patterns: flow[e,p] = 1 if flow exists on edge e in pattern p
+# Flow patterns: flow[e,p] = 1 if positive flow on edge e in pattern p
+# Only positive flows allow contamination propagation
 param flow {0..num_edges-1, PATTERNS} binary;
 
 # Alternative flow representation: flow_edge[i,j,p]
@@ -71,8 +72,8 @@ subject to Sensor_Symmetry {(i,j) in EDGES: (j,i) in EDGES}:
     s[i,j] = s[j,i];
 
 # Constraint 3: Contamination propagation
-# If node k is contaminated and flow goes from k to j without a sensor,
-# then j becomes contaminated
+# If node k is contaminated and positive flow goes from k to j without a sensor,
+# then j becomes contaminated (negative flows are ignored)
 subject to Contamination_Propagation {e in 0..num_edges-1, p in PATTERNS, i in ATTACK_NODES: flow[e,p] = 1}:
     c[i,p,edge_to[e]] >= c[i,p,edge_from[e]] - s[edge_from[e],edge_to[e]];
 
