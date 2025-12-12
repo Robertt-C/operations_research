@@ -42,7 +42,7 @@ param flow {0..num_edges-1, PATTERNS} binary;
 param flow_edge {i in NODES, j in NODES, p in PATTERNS} binary default 0;
 
 # Sensor budget (set this based on your constraint)
-param S_max >= 0 default 20;
+param S_max >= 0 default 1;
 
 # ===== DECISION VARIABLES =====
 
